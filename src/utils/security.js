@@ -36,10 +36,36 @@ export const SECURITY_LEVELS = {
  */
 export class SecurityErrorHandler {
     constructor() {
-        this.authStore = useAuthStore()
-        this.router = useRouter()
+        this._authStore = null
+        this._router = null
         this.errorHistory = []
         this.maxErrorHistory = 50
+    }
+
+    // Lazy initialization for Pinia store
+    get authStore() {
+        if (!this._authStore) {
+            try {
+                this._authStore = useAuthStore()
+            } catch (error) {
+                console.warn('AuthStore not available yet:', error.message)
+                return null
+            }
+        }
+        return this._authStore
+    }
+
+    // Lazy initialization for Vue Router
+    get router() {
+        if (!this._router) {
+            try {
+                this._router = useRouter()
+            } catch (error) {
+                console.warn('Router not available yet:', error.message)
+                return null
+            }
+        }
+        return this._router
     }
 
     /**
@@ -153,8 +179,12 @@ export class SecurityErrorHandler {
      * Handle session expiry
      */
     handleSessionExpiry() {
-        this.authStore.clearAuth()
-        this.router.push('/login?reason=expired')
+        if (this.authStore) {
+            this.authStore.clearAuth()
+        }
+        if (this.router) {
+            this.router.push('/login?reason=expired')
+        }
         this.showSecurityAlert('Your session has expired. Please log in again.', 'warning')
     }
 
@@ -164,15 +194,21 @@ export class SecurityErrorHandler {
     handlePermissionDenied() {
         this.showSecurityAlert('You do not have permission to perform this action.', 'error')
         // Optionally redirect to dashboard or previous page
-        this.router.push('/dashboard')
+        if (this.router) {
+            this.router.push('/dashboard')
+        }
     }
 
     /**
      * Handle account locked
      */
     handleAccountLocked() {
-        this.authStore.clearAuth()
-        this.router.push('/login?reason=locked')
+        if (this.authStore) {
+            this.authStore.clearAuth()
+        }
+        if (this.router) {
+            this.router.push('/login?reason=locked')
+        }
         this.showSecurityAlert('Your account has been temporarily locked due to security reasons.', 'error')
     }
 
@@ -182,8 +218,12 @@ export class SecurityErrorHandler {
     async handleCSRFError() {
         try {
             // Try to refresh CSRF token
-            await this.authStore.fetchCSRFToken()
-            this.showSecurityAlert('Security token refreshed. Please try again.', 'info')
+            if (this.authStore) {
+                await this.authStore.fetchCSRFToken()
+                this.showSecurityAlert('Security token refreshed. Please try again.', 'info')
+            } else {
+                this.handleSessionExpiry()
+            }
         } catch (error) {
             this.handleSessionExpiry()
         }
@@ -200,7 +240,9 @@ export class SecurityErrorHandler {
      * Handle security violation
      */
     handleSecurityViolation() {
-        this.authStore.setSecurityLevel(SECURITY_LEVELS.CRITICAL)
+        if (this.authStore) {
+            this.authStore.setSecurityLevel(SECURITY_LEVELS.CRITICAL)
+        }
         this.showSecurityAlert('Security violation detected. All actions are being monitored.', 'error')
 
         // Log additional security context
@@ -239,8 +281,8 @@ export class SecurityErrorHandler {
             context,
             userAgent: navigator.userAgent,
             url: window.location.href,
-            userId: this.authStore.user?.id,
-            sessionId: this.authStore.sessionId
+            userId: this.authStore?.user?.id,
+            sessionId: this.authStore?.sessionId
         }
 
         // Log to console (development)
@@ -263,8 +305,8 @@ export class SecurityErrorHandler {
             timestamp: new Date().toISOString(),
             userAgent: navigator.userAgent,
             url: window.location.href,
-            userId: this.authStore.user?.id,
-            sessionId: this.authStore.sessionId,
+            userId: this.authStore?.user?.id,
+            sessionId: this.authStore?.sessionId,
             errorHistory: this.errorHistory.slice(-10) // Last 10 errors
         }
 
@@ -297,7 +339,7 @@ export class SecurityErrorHandler {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    ...this.authStore.getSecurityHeaders()
+                    ...(this.authStore?.getSecurityHeaders() || {})
                 },
                 body: JSON.stringify({
                     ...data,
@@ -504,11 +546,4 @@ export class SecurityValidator {
 }
 
 // Create singleton instances
-export const securityErrorHandler = new SecurityErrorHandler()
-
-// Export utilities
-export {
-    InputSanitizer,
-    PermissionUtils,
-    SecurityValidator
-} 
+export const securityErrorHandler = new SecurityErrorHandler() 

@@ -463,9 +463,45 @@ export class ApiEndpoints {
 const apiClient = new EnhancedApiClient()
 const api = new ApiEndpoints(apiClient)
 
+/**
+ * Universal API call wrapper for legacy compatibility
+ * @param {string} url - API endpoint URL
+ * @param {object} options - Request options (method, data, params, etc.)
+ * @returns {Promise} API response
+ */
+export const apiCall = async (url, options = {}) => {
+    const { method = 'GET', data, params, ...restOptions } = options
+
+    try {
+        let response
+
+        switch (method.toUpperCase()) {
+            case 'GET':
+                response = await apiClient.get(url, { params, ...restOptions })
+                break
+            case 'POST':
+                response = await apiClient.post(url, data, { params, ...restOptions })
+                break
+            case 'PUT':
+                response = await apiClient.put(url, data, { params, ...restOptions })
+                break
+            case 'DELETE':
+                response = await apiClient.delete(url, { params, ...restOptions })
+                break
+            default:
+                throw new Error(`Unsupported HTTP method: ${method}`)
+        }
+
+        return response.data
+    } catch (error) {
+        console.error(`API call failed for ${method} ${url}:`, error)
+        throw error
+    }
+}
+
 // Export enhanced API client and endpoints
 export default api
-export { apiClient, EnhancedApiClient, ApiEndpoints }
+export { apiClient, EnhancedApiClient }
 
 // Legacy support - keep existing api instance
 export const legacyApi = createSecureApiClient() 
